@@ -95,10 +95,10 @@ def detect_cans():
                     # Build Bounding Box
                     x,y,w,h = cv2.boundingRect(best_contour)
                     bounding_box = ((x,y), (x+w, y+h))
-                    print('bounding box' + bounding_box)
+                    print('bounding box:', bounding_box)
                     depth = depth_image[int((x+x+w)/2), int((y+y+h)/2)]
-
-                    print('depth is' + depth)
+                    if(depth!=0):
+                        print('depth is:', depth)
             
 
 
