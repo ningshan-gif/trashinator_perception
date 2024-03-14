@@ -96,7 +96,7 @@ def detect_cans():
                     x,y,w,h = cv2.boundingRect(best_contour)
                     bounding_box = ((x,y), (x+w, y+h))
                     print('bounding box:', bounding_box)
-                    depth = depth_image[int((x+x+w)/2), int((y+y+h)/2)]
+                    depth = depth_image[int((y+y+h)/2), int((x+x+w)/2)]
                     if(depth!=0):
                         print('depth is:', depth)
             
@@ -105,7 +105,8 @@ def detect_cans():
                     # Visualize Bounding Box
                     if show_camera:
                         cv2.rectangle(color_image,bounding_box[0],bounding_box[1],(0,255,0),2)
-                        cv2.putText(color_image, "Depth: {:.2f}m".format(depth), (bounding_box[0][0], bounding_box[0][1] - 10),
+                        if(depth!=0):
+                            cv2.putText(color_image, "Depth: {:.2f}m".format(depth), (bounding_box[0][0], bounding_box[0][1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
             
             # Show live feed 
