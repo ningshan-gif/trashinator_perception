@@ -95,8 +95,12 @@ def detect_cans():
                     # Build Bounding Box
                     x,y,w,h = cv2.boundingRect(best_contour)
                     bounding_box = ((x,y), (x+w, y+h))
-                    print(bounding_box)
+                    print('bounding box' + bounding_box)
+                    depth = depth_frame.get_distance(int((x+x+w)/2), int((y+y+h)/2))
+                    print('depth is' + depth)
+            
 
+            
                     # Visualize Bounding Box
                     if show_camera:
                         cv2.rectangle(color_image,bounding_box[0],bounding_box[1],(0,255,0),2)
@@ -110,7 +114,7 @@ def detect_cans():
                 depth_colormap_dim = depth_colormap.shape
                 color_colormap_dim = color_image.shape
                 if depth_colormap_dim != color_colormap_dim:
-                    color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]), interpolation=cv2.INTER_AREA)
+                  color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]), interpolation=cv2.INTER_AREA)
 
                 # Combine images to one window
                 images = np.hstack((color_image, depth_colormap))
