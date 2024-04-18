@@ -1,9 +1,13 @@
+import rclpy
+from rclpy.node import Node
 import pyrealsense2 as rs
 import numpy as np
 import cv2
 
+from geometry_msgs.msg import Point
+
 # Configuration
-show_camera = True # Display the live feed
+show_camera = False # Display the live feed
 MIN_CONTOUR_AREA = 25 # The smallest object  that could potentially be a can, in pixel area, make bigger to filter more noise
 DEPTH_COLORMAP_CONTRAST_SCALE = 0.06 # Lower = less contrast, less transitions, and lower max distance
 
@@ -25,7 +29,27 @@ high_1 = (125, 255, 255) # Soda Red
 #high_3 = (0, 0, 0)
 
 
-def image_print(img):
+class bounding_box_publisher(Node):
+
+    def __init__(self):
+        super().__init__('bounding_box_publisher')
+        self.bounding_box_publisher = self.create_publisher(Point, 'bounding_box', 20)
+        timer_period =1.0/20 # hz
+        self.timer = self.create_timer(timer_period, self.detect_cans)
+
+        # Get camera pipelines and configuration
+        self.pipeline = rs.pipeline()
+        config = rs.config()
+
+        # Configure camera streams
+        config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
+        # Start streaming
+        self.pipeline.start(config)
+
+
+    def image_print(img):
 	"""
 	Helper function to print out images, for debugging. img is represented as a list
 
@@ -35,29 +59,16 @@ def image_print(img):
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
 
-def detect_cans():
-    """
-    Runs can detection on the Intel Realsense Depth Camera D435 in realtime
-    Object detection implemented through color segmentation and filtering
+    def detect_cans():
+        """
+        Runs can detection on the Intel Realsense Depth Camera D435 in realtime
+        Object detection implemented through color segmentation and filtering
 
-    Prints the pixel coordinate bounding box of the can to the standard output
-    """
-
-    # Get camera pipelines and configuration
-    pipeline = rs.pipeline()
-    config = rs.config()
-
-    # Configure camera streams
-    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-
-    # Start streaming
-    pipeline.start(config)
-
-    try:
-        while True:
+        Prints the pixel coordinate bounding box of the can to the standard output
+        """
+        try:
             # Get next camera frames
-            frames = pipeline.wait_for_frames()
+            frames = self.pipeline.wait_for_frames()
             depth_frame = frames.get_depth_frame()
             color_frame = frames.get_color_frame()
             if not depth_frame or not color_frame:
@@ -100,7 +111,12 @@ def detect_cans():
                     if(depth!=0):
                         print('depth is:', depth)
             
-
+                    # Publish Bounding Box
+                    msg = Point()
+                    msg.x = int((x+x+w)/2)
+                    msg.y = int((y+y+h)/2)
+                    msg.z = 0
+                    self.bounding_box_publisher.publish(msg)
 
                     # Visualize Bounding Box
                     if show_camera:
@@ -118,7 +134,7 @@ def detect_cans():
                 depth_colormap_dim = depth_colormap.shape
                 color_colormap_dim = color_image.shape
                 if depth_colormap_dim != color_colormap_dim:
-                  color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]), interpolation=cv2.INTER_AREA)
+                color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]), interpolation=cv2.INTER_AREA)
 
                 # Combine images to one window
                 images = np.hstack((color_image, depth_colormap))
@@ -127,11 +143,21 @@ def detect_cans():
                 cv2.namedWindow('Trashinator Camera', cv2.WINDOW_AUTOSIZE)
                 cv2.imshow('Trashinator Camera', images)
                 cv2.waitKey(1)
+        
 
-    finally:
-        # Stop camera streams
-        pipeline.stop()
+def main(args=None):
+    rclpy.init(args=args)
 
-if __name__ == "__main__":
-    print("Starting can detection...")
-    detect_cans()
+    bounding_box_pub = bounding_box_publisher()
+
+    rclpy.spin(bounding_box_pub)
+
+    # Destroy the node explicitly
+    # (optional - otherwise it will be done automatically
+    # when the garbage collector destroys the node object)
+    self.pipeline.stop()
+    bounding_box_publisher.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
