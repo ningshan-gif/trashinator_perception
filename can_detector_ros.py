@@ -32,7 +32,8 @@ class bounding_box_publisher(Node):
 
     def __init__(self):
         super().__init__('bounding_box_publisher')
-        self.bounding_box_publisher = self.create_publisher(Point, 'bounding_box', 20)
+        self.bounding_box_publisher = self.create_publisher(Point, 'trash_pixel_loc', 20)
+        self.bounding_box_world_publisher = self.create_publisher(Point, 'trash_world_loc', 20)
         self.drive_publisher = self.create_publisher(Twist, '/cmd_vel', 10)
 
         # Start Camera Clock
@@ -74,7 +75,7 @@ class bounding_box_publisher(Node):
             depth_frame = frames.get_depth_frame()
             color_frame = frames.get_color_frame()
             if not depth_frame or not color_frame:
-                continue
+                return
 
             # Convert to OpenCV Images
             depth_image = np.asanyarray(depth_frame.get_data())
@@ -118,9 +119,9 @@ class bounding_box_publisher(Node):
             
                     # Publish Bounding Box
                     msg = Point()
-                    msg.x = int((x+x+w)/2)
-                    msg.y = int((y+y+h)/2)
-                    msg.z = 0
+                    msg.x = (x+x+w)/2
+                    msg.y = (y+y+h)/2
+                    msg.z = 0.0
                     self.bounding_box_publisher.publish(msg)
 
                     # Visualize Bounding Box
@@ -132,10 +133,11 @@ class bounding_box_publisher(Node):
             
             # No Found Countours -> Keep Searching
             else:
-                drive_msg = Twist()
-                drive_msg.linear.x = 0.0
-                drive_msg.angular.z = 0.5
-                self.drive_publisher.publish()
+                msg = Point()
+                msg.x = 0.0
+                msg.y = 0.0
+                msg.z = 0.0
+                self.bounding_box_world_publisher.publish(msg)
             
             # Show live feed 
             if show_camera:
