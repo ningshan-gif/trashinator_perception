@@ -4,25 +4,24 @@ import pyrealsense2 as rs
 import numpy as np
 import cv2
 
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Twist
 
 # Configuration
 show_camera = False # Display the live feed
-MIN_CONTOUR_AREA = 25 # The smallest object  that could potentially be a can, in pixel area, make bigger to filter more noise
+MIN_CONTOUR_AREA = 10 # The smallest object  that could potentially be a can, in pixel area, make bigger to filter more noise
 DEPTH_COLORMAP_CONTRAST_SCALE = 0.06 # Lower = less contrast, less transitions, and lower max distance
 
 # Globals
 HEIGHT = 480
 WIDTH = 640
-top = np.zeros((int((5/8.0)*HEIGHT), WIDTH), dtype="uint8")
-middle = np.ones((int((3/8.0)*HEIGHT), WIDTH), dtype="uint8")
-bottom = np.zeros(((HEIGHT-top.shape[0]-middle.shape[0]), WIDTH), dtype="uint8")
-line_follower_mask = np.vstack((top, middle, bottom))
+top = np.zeros((int((4.25/8.0)*HEIGHT), WIDTH), dtype="uint8")
+bottom = np.ones((int(HEIGHT - int((4.25/8.0)*HEIGHT)), WIDTH), dtype="uint8")
+line_follower_mask = np.vstack((top, bottom))
 
 # Color Segmentation Mask
 # TODO: Combining multiple filters will enhance detection
-low_1 = (115, 190, 0) # Soda Red
-high_1 = (125, 255, 255) # Soda Red
+low_1 = (119, 109, 130) # Soda Red
+high_1 = (124, 255, 255) # Soda Red
 #low_2 = (103, 121, 0) 
 #high_2 = (111, 161, 255)
 #low_3 = (0, 0, 0)
@@ -34,6 +33,9 @@ class bounding_box_publisher(Node):
     def __init__(self):
         super().__init__('bounding_box_publisher')
         self.bounding_box_publisher = self.create_publisher(Point, 'bounding_box', 20)
+        self.drive_publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+
+        # Start Camera Clock
         timer_period =1.0/20 # hz
         self.timer = self.create_timer(timer_period, self.detect_cans)
 
@@ -49,17 +51,17 @@ class bounding_box_publisher(Node):
         self.pipeline.start(config)
 
 
-    def image_print(img):
-	"""
-	Helper function to print out images, for debugging. img is represented as a list
+    def image_print(self, img):
+        """
+        Helper function to print out images, for debugging. img is represented as a list
 
-	Press any key to continue.
-	"""
-	cv2.imshow("image", img)
-	cv2.waitKey(0)
-	cv2.destroyAllWindows()
+        Press any key to continue.
+        """
+        cv2.imshow("image", img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
-    def detect_cans():
+    def detect_cans(self):
         """
         Runs can detection on the Intel Realsense Depth Camera D435 in realtime
         Object detection implemented through color segmentation and filtering
@@ -82,6 +84,7 @@ class bounding_box_publisher(Node):
             blurred_image = cv2.GaussianBlur(color_image, (3,3), 0)
             blurred_image = cv2.erode(blurred_image, (3,3))
             blurred_image = cv2.dilate(blurred_image, (3,3))
+            blurred_image = cv2.bitwise_and(blurred_image, blurred_image, mask=line_follower_mask)
 
             # Convert to HSV
             image_hsv = cv2.cvtColor(blurred_image, cv2.COLOR_RGB2HSV)
@@ -100,6 +103,8 @@ class bounding_box_publisher(Node):
             # Identify Potential Contours
             _, thresholded_image = cv2.threshold(COLOR_MASK, 40, 255, cv2.THRESH_BINARY)
             contours, _  = cv2.findContours(thresholded_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            # Found Contours -> Found Trash
             if len(contours) > 0:
                 best_contour = max(contours, key=cv2.contourArea) # Choose contour of largest area
                 if cv2.contourArea(best_contour) >= MIN_CONTOUR_AREA: # Super small contour --> likely just noise
@@ -125,6 +130,13 @@ class bounding_box_publisher(Node):
                             cv2.putText(color_image, "Depth: {:.2f}mm".format(depth), (bounding_box[0][0], bounding_box[0][1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
             
+            # No Found Countours -> Keep Searching
+            else:
+                drive_msg = Twist()
+                drive_msg.linear.x = 0.0
+                drive_msg.angular.z = 0.5
+                self.drive_publisher.publish()
+            
             # Show live feed 
             if show_camera:
                 # Build depth colormap
@@ -134,7 +146,7 @@ class bounding_box_publisher(Node):
                 depth_colormap_dim = depth_colormap.shape
                 color_colormap_dim = color_image.shape
                 if depth_colormap_dim != color_colormap_dim:
-                color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]), interpolation=cv2.INTER_AREA)
+                    color_image = cv2.resize(color_image, dsize=(depth_colormap_dim[1], depth_colormap_dim[0]), interpolation=cv2.INTER_AREA)
 
                 # Combine images to one window
                 images = np.hstack((color_image, depth_colormap))
@@ -143,7 +155,9 @@ class bounding_box_publisher(Node):
                 cv2.namedWindow('Trashinator Camera', cv2.WINDOW_AUTOSIZE)
                 cv2.imshow('Trashinator Camera', images)
                 cv2.waitKey(1)
-        
+
+        except:
+            pass
 
 def main(args=None):
     rclpy.init(args=args)

@@ -4,21 +4,20 @@ import cv2
 
 # Configuration
 show_camera = True # Display the live feed
-MIN_CONTOUR_AREA = 25 # The smallest object  that could potentially be a can, in pixel area, make bigger to filter more noise
+MIN_CONTOUR_AREA = 10 # The smallest object  that could potentially be a can, in pixel area, make bigger to filter more noise
 DEPTH_COLORMAP_CONTRAST_SCALE = 0.06 # Lower = less contrast, less transitions, and lower max distance
 
 # Globals
 HEIGHT = 480
 WIDTH = 640
-top = np.zeros((int((5/8.0)*HEIGHT), WIDTH), dtype="uint8")
-middle = np.ones((int((3/8.0)*HEIGHT), WIDTH), dtype="uint8")
-bottom = np.zeros(((HEIGHT-top.shape[0]-middle.shape[0]), WIDTH), dtype="uint8")
-line_follower_mask = np.vstack((top, middle, bottom))
+top = np.zeros((int((4.25/8.0)*HEIGHT), WIDTH), dtype="uint8")
+bottom = np.ones((int(HEIGHT - int((4.25/8.0)*HEIGHT)), WIDTH), dtype="uint8")
+line_follower_mask = np.vstack((top, bottom))
 
 # Color Segmentation Mask
 # TODO: Combining multiple filters will enhance detection
-low_1 = (115, 190, 0) # Soda Red
-high_1 = (125, 255, 255) # Soda Red
+low_1 = (119, 109, 130) # Soda Red
+high_1 = (124, 255, 255) # Soda Red
 #low_2 = (103, 121, 0) 
 #high_2 = (111, 161, 255)
 #low_3 = (0, 0, 0)
@@ -71,6 +70,7 @@ def detect_cans():
             blurred_image = cv2.GaussianBlur(color_image, (3,3), 0)
             blurred_image = cv2.erode(blurred_image, (3,3))
             blurred_image = cv2.dilate(blurred_image, (3,3))
+            blurred_image = cv2.bitwise_and(blurred_image, blurred_image, mask=line_follower_mask)
 
             # Convert to HSV
             image_hsv = cv2.cvtColor(blurred_image, cv2.COLOR_RGB2HSV)
@@ -106,8 +106,8 @@ def detect_cans():
                     if show_camera:
                         cv2.rectangle(color_image,bounding_box[0],bounding_box[1],(0,255,0),2)
                         if(depth!=0):
-                            cv2.putText(color_image, "Depth: {:.2f}mm".format(depth), (bounding_box[0][0], bounding_box[0][1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+                            pass
+                            cv2.putText(color_image, "Depth: {:.2f}mm".format(depth), (bounding_box[0][0], bounding_box[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
             
             # Show live feed 
             if show_camera:
